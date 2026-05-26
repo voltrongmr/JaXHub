@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tetris</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(1200px 800px at 80% -10%, #1a1240 0%, transparent 60%),
+                radial-gradient(900px 700px at -10% 100%, #082a3a 0%, transparent 55%),
+                #07080d;
+    color: #e8ebf5;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  .wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 40px;
+    padding: 24px;
+    margin: 20px;
+  }
+  h1 {
+    font-size: 2.5rem;
+    letter-spacing: 0.15em;
+    text-align: center;
+    margin-bottom: 24px;
+    background: linear-gradient(90deg, #7c5cff, #22d3ee);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 800;
+  }
+  canvas {
+    display: block;
+    border: 2px solid #232739;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(124,92,255,0.2);
+  }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(0,0,0,0.85);
+    border-radius: 6px;
+    color: #fff;
+  }
+  .overlay > div:first-child { color: #22d3ee; font-weight: 700; }
+  .overlay button {
+    padding: 10px 22px;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #7c5cff, #22d3ee);
+    color: #0a0a14;
+    cursor: pointer;
+    transition: transform .1s, box-shadow .2s;
+  }
+  .overlay button:hover { transform: translateY(-1px); box-shadow: 0 10px 30px rgba(124,92,255,0.35); }
+  .side { font-size: 0.875rem; color: #e8ebf5; }
+  .side .label { color: #8a90a6; margin-bottom: 2px; font-weight: 600; }
+  .side .score { font-size: 2rem; font-weight: 700; color: #22d3ee; margin-bottom: 24px; }
+  .side .row { margin-bottom: 4px; color: #e8ebf5; }
+  .board-wrap { position: relative; }
+  .back-btn {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    padding: 8px 16px;
+    background: transparent;
+    color: #8a90a6;
+    border: 1px solid #232739;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: color .2s, border-color .2s;
+    z-index: 100;
+  }
+  .back-btn:hover {
+    color: #e8ebf5;
+    border-color: #8a90a6;
+  }
+  body > div {
+    position: relative;
+  }
+
+</style>
+</head>
+<body>
+<button class="back-btn" onclick="window.history.back()">← Back</button>
+<div>
+  <h1>TETRIS</h1>
+  <div class="wrap">
+    <div class="board-wrap">
+      <canvas id="board" width="300" height="600"></canvas>
+      <div id="over" class="overlay" style="display:none;">
+        <div style="font-size:1.5rem;font-weight:600;">Game Over</div>
+        <button onclick="restart()">Play again</button>
+      </div>
+    </div>
+    <div class="side">
+      <div class="label">Score</div>
+      <div id="score" class="score">0</div>
+      <div class="label">Controls</div>
+      <div class="row">A / D — move</div>
+      <div class="row">S — soft drop</div>
+      <div class="row">W / X — rotate</div>
+      <div class="row">Space — hard drop</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLS = 10;
+const ROWS = 20;
+const BLOCK = 30;
+
+const COLORS = [
+  "transparent",
+  "#22d3ee", // I
+  "#3b82f6", // J
+  "#f97316", // L
+  "#facc15", // O
+  "#22c55e", // S
+  "#a855f7", // T
+  "#ef4444", // Z
+];
+
+const SHAPES = [
+  [],
+  [[1,1,1,1]],
+  [[2,0,0],[2,2,2]],
+  [[0,0,3],[3,3,3]],
+  [[4,4],[4,4]],
+  [[0,5,5],[5,5,0]],
+  [[0,6,0],[6,6,6]],
+  [[7,7,0],[0,7,7]],
+];
+
+const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d");
+const scoreEl = document.getElementById("score");
+const overEl = document.getElementById("over");
+
+let board, piece, dropAcc, dropInterval, last, over, score;
+
+function newPiece() {
+  const id = 1 + Math.floor(Math.random() * 7);
+  const shape = SHAPES[id].map(r => r.slice());
+  return { x: Math.floor((COLS - shape[0].length) / 2), y: 0, shape };
+}
+
+function rotate(shape) {
+  const h = shape.length;
+  const w = shape[0].length;
+  const out = Array.from({ length: w }, () => Array(h).fill(0));
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++)
+      out[x][h - 1 - y] = shape[y][x];
+  return out;
+}
+
+function collides(p) {
+  for (let y = 0; y < p.shape.length; y++)
+    for (let x = 0; x < p.shape[y].length; x++) {
+      if (!p.shape[y][x]) continue;
+      const nx = p.x + x;
+      const ny = p.y + y;
+      if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
+      if (ny >= 0 && board[ny][nx]) return true;
+    }
+  return false;
+}
+
+function merge(p) {
+  for (let y = 0; y < p.shape.length; y++)
+    for (let x = 0; x < p.shape[y].length; x++)
+      if (p.shape[y][x] && p.y + y >= 0) board[p.y + y][p.x + x] = p.shape[y][x];
+}
+
+function clearLines() {
+  let cleared = 0;
+  for (let y = ROWS - 1; y >= 0; y--) {
+    if (board[y].every(c => c)) {
+      board.splice(y, 1);
+      board.unshift(Array(COLS).fill(0));
+      cleared++;
+      y++;
+    }
+  }
+  if (cleared) {
+    score += [0, 100, 300, 700, 1500][cleared];
+    scoreEl.textContent = score;
+    dropInterval = Math.max(80, 500 - Math.floor(score / 1000) * 50);
+  }
+}
+
+function drop() {
+  piece.y++;
+  if (collides(piece)) {
+    piece.y--;
+    merge(piece);
+    clearLines();
+    piece = newPiece();
+    if (collides(piece)) {
+      over = true;
+      overEl.style.display = "flex";
+    }
+  }
+  dropAcc = 0;
+}
+
+function drawCell(x, y, id) {
+  ctx.fillStyle = COLORS[id];
+  ctx.fillRect(x * BLOCK + 1, y * BLOCK + 1, BLOCK - 2, BLOCK - 2);
+  ctx.shadowColor = COLORS[id] + "99";
+  ctx.shadowBlur = 8;
+  ctx.strokeStyle = "rgba(255,255,255,0.3)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x * BLOCK + 1, y * BLOCK + 1, BLOCK - 2, BLOCK - 2);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "rgba(255,255,255,0.2)";
+  ctx.fillRect(x * BLOCK + 1, y * BLOCK + 1, BLOCK - 2, 4);
+}
+
+function draw() {
+  ctx.fillStyle = "#11131c";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x * BLOCK, 0); ctx.lineTo(x * BLOCK, ROWS * BLOCK); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y * BLOCK); ctx.lineTo(COLS * BLOCK, y * BLOCK); ctx.stroke();
+  }
+
+  for (let y = 0; y < ROWS; y++)
+    for (let x = 0; x < COLS; x++)
+      if (board[y][x]) drawCell(x, y, board[y][x]);
+
+  for (let y = 0; y < piece.shape.length; y++)
+    for (let x = 0; x < piece.shape[y].length; x++)
+      if (piece.shape[y][x]) drawCell(piece.x + x, piece.y + y, piece.shape[y][x]);
+}
+
+function loop(t) {
+  const dt = t - last;
+  last = t;
+  if (!over) {
+    dropAcc += dt;
+    if (dropAcc >= dropInterval) drop();
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function onKey(e) {
+  if (over) return;
+  if (e.key === "a" || e.key === "A" || e.key === "ArrowLeft") {
+    piece.x--;
+    if (collides(piece)) piece.x++;
+  } else if (e.key === "d" || e.key === "D" || e.key === "ArrowRight") {
+    piece.x++;
+    if (collides(piece)) piece.x--;
+  } else if (e.key === "s" || e.key === "S" || e.key === "ArrowDown") {
+    drop();
+  } else if (e.key === "w" || e.key === "W" || e.key === "ArrowUp" || e.key === "x" || e.key === "X") {
+    const old = piece.shape;
+    piece.shape = rotate(piece.shape);
+    if (collides(piece)) piece.shape = old;
+  } else if (e.key === " ") {
+    e.preventDefault();
+    while (!collides(piece)) piece.y++;
+    piece.y--;
+    drop();
+  }
+}
+
+function init() {
+  board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+  piece = newPiece();
+  dropAcc = 0;
+  dropInterval = 500;
+  last = performance.now();
+  over = false;
+  score = 0;
+  scoreEl.textContent = "0";
+  overEl.style.display = "none";
+}
+
+function restart() {
+  init();
+}
+
+window.addEventListener("keydown", onKey);
+init();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

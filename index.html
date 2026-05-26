@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JaXHub</title>
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="stars"></div>
+
+  <!-- LOGIN SCREEN -->
+  <section id="login" class="screen active">
+    <div class="login-card">
+      <h1 class="logo">Ja<span>X</span>Hub</h1>
+      <p class="tagline">Enter the password to unlock the vault.</p>
+      <form id="login-form" autocomplete="off">
+        <input type="password" id="password" placeholder="Password" required />
+        <button type="submit">Unlock</button>
+      </form>
+      <p id="error" class="error"></p>
+    </div>
+  </section>
+
+  <!-- HUB -->
+  <section id="hub" class="screen">
+    <header class="topbar">
+      <h1 class="logo small">Ja<span>X</span>Hub</h1>
+      <nav>
+        <button id="logout">Logout</button>
+      </nav>
+    </header>
+
+    <main>
+      <!-- GAMES -->
+      <div id="games" class="panel active">
+        <h2>Games</h2>
+        <p class="sub">Pick something to kill time.</p>
+        <div class="grid" id="games-grid"></div>
+      </div>
+
+      <!-- CHEATS -->
+      <div id="cheats" class="panel">
+        <h2>School Cheats</h2>
+        <p class="sub">Quick tools to make the work easier.</p>
+        <div class="grid" id="cheats-grid"></div>
+      </div>
+    </main>
+
+    <!-- Game viewer -->
+    <div id="viewer" class="viewer hidden">
+      <div class="viewer-bar">
+        <span id="viewer-title"></span>
+        <button id="viewer-close">Close</button>
+      </div>
+      <iframe id="viewer-frame" src="" allowfullscreen></iframe>
+    </div>
+
+    <!-- Dock -->
+    <div class="dock">
+      <button class="dock-item" id="dock-games" title="Games">
+        <span class="dock-icon">👾</span>
+      </button>
+      <button class="dock-item" id="dock-cheats" title="Cheats">
+        <span class="dock-icon">🔒</span>
+      </button>
+    </div>
+  </section>
+
+  <script src="./script.js"></script>
+</body>
+</html>
